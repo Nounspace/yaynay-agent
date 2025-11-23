@@ -7,20 +7,23 @@
  */
 
 import 'dotenv/config';
-import { createPublicClient, http, decodeEventLog } from 'viem';
+import { createPublicClient, http, keccak256, toHex, encodeFunctionData } from 'viem';
 import { base } from 'viem/chains';
 import { CdpClient } from '@coinbase/cdp-sdk';
-import { encodeFunctionData } from 'viem';
 
 const GOVERNOR_ADDRESS = process.env.DAO_GOVERNOR_ADDRESS as `0x${string}`;
 const AGENT_SMART_ACCOUNT = process.env.AGENT_SMART_ACCOUNT_ADDRESS as `0x${string}`;
 const AGENT_EOA_ADDRESS = process.env.AGENT_EOA_ADDRESS as `0x${string}`;
 
+// Subgraph URL for Builder DAO
+const SUBGRAPH_URL = 'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/production/gn';
+const DAO_ADDRESS = '0x626fbb71ca4fe65f94e73ab842148505ae1a0b26';
+
 // Cooldown to prevent rapid executions
 const COOLDOWN_MS = 12 * 60 * 1000; // 12 minutes
 const COOLDOWN_FILE = './data/last-executor-run.json';
 
-// Governor ABI - key functions
+// Governor ABI
 const GOVERNOR_ABI = [
   {
     name: 'state',
@@ -41,21 +44,6 @@ const GOVERNOR_ABI = [
     ],
     outputs: [{ name: '', type: 'uint256' }],
   },
-  {
-    name: 'ProposalCreated',
-    type: 'event',
-    inputs: [
-      { name: 'proposalId', type: 'uint256', indexed: false },
-      { name: 'proposer', type: 'address', indexed: false },
-      { name: 'targets', type: 'address[]', indexed: false },
-      { name: 'values', type: 'uint256[]', indexed: false },
-      { name: 'signatures', type: 'string[]', indexed: false },
-      { name: 'calldatas', type: 'bytes[]', indexed: false },
-      { name: 'startBlock', type: 'uint256', indexed: false },
-      { name: 'endBlock', type: 'uint256', indexed: false },
-      { name: 'description', type: 'string', indexed: false },
-    ],
-  },
 ] as const;
 
 // Proposal states from Governor
@@ -70,12 +58,21 @@ enum ProposalState {
   Executed = 7,
 }
 
+interface SubgraphProposal {
+  proposalId: string;
+  proposalNumber: number;
+  description: string;
+  title: string;
+  timeCreated: string;
+}
+
 interface ProposalData {
   proposalId: bigint;
+  proposalNumber: number;
+  description: string;
   targets: `0x${string}`[];
   values: bigint[];
   calldatas: `0x${string}`[];
-  description: string;
   descriptionHash: `0x${string}`;
 }
 
@@ -92,8 +89,8 @@ async function checkCooldown(): Promise<boolean> {
       console.log(`   Need to wait ${minutesRemaining} more minutes`);
       return false;
     }
-  } catch (error) {
-    // File doesn't exist or error reading, allow execution
+  } catch {
+    // File doesn't exist, allow execution
   }
   return true;
 }
@@ -108,65 +105,115 @@ async function updateCooldown(): Promise<void> {
   }
 }
 
+/**
+ * Extract transaction details from proposal description
+ */
+function extractProposalDetails(description: string): {
+  targets: `0x${string}`[];
+  values: bigint[];
+  calldatas: `0x${string}`[];
+} | null {
+  try {
+    // Look for coin address in description
+    const addressMatch = description.match(/Address:\s*(0x[a-fA-F0-9]{40})/);
+    if (!addressMatch) return null;
+    
+    const coinAddress = addressMatch[1] as `0x${string}`;
+    
+    // Extract amount (default to 0.01 ETH if not found)
+    const amountMatch = description.match(/Amount:\s*([\d.]+)\s*ETH/);
+    const amount = amountMatch ? amountMatch[1] : '0.01';
+    const valueInWei = BigInt(parseFloat(amount) * 1e18);
+    
+    return {
+      targets: [coinAddress],
+      values: [valueInWei],
+      calldatas: ['0x' as `0x${string}`], // Empty calldata for ETH transfer
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function getRecentProposals(): Promise<ProposalData[]> {
-  console.log('🔍 Fetching recent proposals from Governor...\n');
+  console.log('🔍 Fetching recent proposals from subgraph...\n');
   
-  // Use Base's official RPC endpoint (more reliable than public endpoint)
-  const client = createPublicClient({
-    chain: base,
-    transport: http('https://base.blockpi.network/v1/rpc/public'),
-  });
+  const query = `
+    query proposals($where: Proposal_filter, $first: Int!) {
+      proposals(
+        where: $where
+        first: $first
+        orderBy: timeCreated
+        orderDirection: desc
+      ) {
+        proposalId
+        proposalNumber
+        description
+        title
+        timeCreated
+      }
+    }
+  `;
 
-  // Get logs for ProposalCreated events from last 7 days
-  const currentBlock = await client.getBlockNumber();
-  const blocksPerDay = 43200n; // ~2 seconds per block on Base
-  const fromBlock = currentBlock - (blocksPerDay * 7n);
+  const variables = {
+    where: {
+      dao: DAO_ADDRESS.toLowerCase(),
+    },
+    first: 50, // Get last 50 proposals
+  };
 
-  const logs = await client.getLogs({
-    address: GOVERNOR_ADDRESS,
-    event: GOVERNOR_ABI.find(item => item.name === 'ProposalCreated'),
-    fromBlock,
-    toBlock: 'latest',
-  });
+  try {
+    const response = await fetch(SUBGRAPH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, variables }),
+    });
 
-  console.log(`   Found ${logs.length} proposals in last 7 days\n`);
+    if (!response.ok) {
+      throw new Error(`Subgraph request failed: ${response.status}`);
+    }
 
-  const proposals: ProposalData[] = [];
+    const result = await response.json();
+    const proposals = result.data?.proposals || [];
+    
+    console.log(`   Found ${proposals.length} proposals from subgraph\n`);
 
-  for (const log of logs) {
-    try {
-      const decoded = decodeEventLog({
-        abi: GOVERNOR_ABI,
-        data: log.data,
-        topics: log.topics,
-      });
+    // Parse proposals and extract transaction details
+    const parsedProposals: ProposalData[] = [];
 
-      const { proposalId, targets, values, calldatas, description } = decoded.args as any;
+    for (const p of proposals as SubgraphProposal[]) {
+      const details = extractProposalDetails(p.description);
+      if (!details) {
+        continue; // Skip if we can't parse the proposal
+      }
 
-      // Calculate description hash (keccak256 of description)
-      const { keccak256, toHex } = await import('viem');
-      const descriptionHash = keccak256(toHex(description));
+      const descriptionHash = keccak256(toHex(p.description));
 
-      proposals.push({
-        proposalId,
-        targets,
-        values,
-        calldatas,
-        description,
+      parsedProposals.push({
+        proposalId: BigInt(p.proposalId),
+        proposalNumber: p.proposalNumber,
+        description: p.description,
+        targets: details.targets,
+        values: details.values,
+        calldatas: details.calldatas,
         descriptionHash,
       });
-    } catch (error) {
-      console.error('⚠️  Failed to decode proposal:', error);
     }
-  }
 
-  return proposals;
+    console.log(`   Parsed ${parsedProposals.length} proposals with valid transaction data\n`);
+    return parsedProposals;
+  } catch (error) {
+    console.error('   ❌ Error fetching from subgraph:', error);
+    return [];
+  }
 }
 
 async function getProposalState(proposalId: bigint): Promise<ProposalState> {
   const client = createPublicClient({
     chain: base,
-    transport: http('https://base.blockpi.network/v1/rpc/public'),
+    transport: http(), // Uses default Base RPC
   });
 
   const state = await client.readContract({
@@ -184,7 +231,8 @@ async function executeProposal(proposal: ProposalData): Promise<void> {
   console.log('🚀 EXECUTING APPROVED PROPOSAL');
   console.log('════════════════════════════════════════════════════════════\n');
 
-  console.log(`Proposal ID: ${proposal.proposalId.toString()}`);
+  console.log(`Proposal #${proposal.proposalNumber}`);
+  console.log(`ID: ${proposal.proposalId.toString()}`);
   console.log(`Description: ${proposal.description.substring(0, 100)}...`);
   console.log(`Targets: ${proposal.targets.length} transaction(s)`);
   console.log(`Total value: ${proposal.values.reduce((a, b) => a + b, 0n)} wei\n`);
@@ -205,19 +253,19 @@ async function executeProposal(proposal: ProposalData): Promise<void> {
   const owner = await cdp.evm.getAccount({
     address: AGENT_EOA_ADDRESS,
   });
-  
-  console.log(`   ✅ EOA owner loaded: ${owner.address}`);
-  
+  console.log(`   Owner: ${AGENT_EOA_ADDRESS}`);
+
   // Then get the Smart Account with the owner
   const smartAccount = await cdp.evm.getSmartAccount({
     address: AGENT_SMART_ACCOUNT,
-    owner: owner,
+    owner,
   });
-  
-  console.log(`   ✅ Smart Account loaded: ${smartAccount.address}\n`);
+  console.log(`   Smart Account: ${AGENT_SMART_ACCOUNT}`);
+  console.log('✅ Smart Account loaded\n');
 
-  // Encode execute() function call
-  console.log('📝 Encoding execute() function call...');
+  // Prepare execute transaction
+  console.log('📝 Preparing execute transaction...');
+  
   const executeCalldata = encodeFunctionData({
     abi: GOVERNOR_ABI,
     functionName: 'execute',
@@ -228,53 +276,43 @@ async function executeProposal(proposal: ProposalData): Promise<void> {
       proposal.descriptionHash,
     ],
   });
-  console.log(`✅ Encoded calldata: ${executeCalldata.substring(0, 66)}... (${executeCalldata.length / 2 - 1} bytes)\n`);
 
-  // Send user operation
-  console.log('📤 Sending execution transaction...');
-  console.log(`   Governor: ${GOVERNOR_ADDRESS}`);
-  console.log(`   Network: base\n`);
+  console.log(`   Calldata: ${executeCalldata.substring(0, 66)}...`);
+  console.log('✅ Transaction prepared\n');
 
+  // Execute via Smart Account
+  console.log('🚀 Submitting execution transaction...');
+  
   try {
-    const userOpResult = await cdp.evm.sendUserOperation({
+    const result = await cdp.evm.sendUserOperation({
       smartAccount,
       network: 'base',
       calls: [{
         to: GOVERNOR_ADDRESS,
         data: executeCalldata,
-        value: 0n,
+        value: '0',
       }],
     });
 
-    console.log('   ✅ User operation submitted!');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userOpHash = (userOpResult as any).userOpHash || (userOpResult as any).hash || (userOpResult as any).userOperationHash;
-    console.log(`   User Op Hash: ${userOpHash}\n`);
-
-    console.log('⏳ Waiting for transaction confirmation...');
-    console.log('   (This may take 10-30 seconds)\n');
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const receipt = await (userOpResult as any).wait();
-    console.log('   ✅ Transaction confirmed!\n');
-
-    console.log('✅ Proposal executed successfully!');
-    console.log(`   Transaction Hash: ${receipt.transactionHash}`);
-    console.log(`   View on BaseScan: https://basescan.org/tx/${receipt.transactionHash}`);
-    console.log(`   View on Builder: https://build.top/dao/base/${GOVERNOR_ADDRESS}\n`);
-  } catch (error: any) {
-    console.error('\n❌ Error executing proposal:');
-    console.error(`   Message: ${error.message}`);
-    throw error;
+    console.log('\n✅ EXECUTION TRANSACTION SUBMITTED!');
+    console.log('════════════════════════════════════════════════════════════');
+    console.log(`User Operation Hash: ${result.userOperationHash}`);
+    console.log(`Transaction Hash: ${result.transactionHash}`);
+    console.log(`View on BaseScan: https://basescan.org/tx/${result.transactionHash}`);
+    console.log('════════════════════════════════════════════════════════════\n');
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('\n❌ EXECUTION FAILED!');
+      console.error('════════════════════════════════════════════════════════════');
+      console.error(`Error: ${error.message}`);
+      console.error('════════════════════════════════════════════════════════════\n');
+      throw error;
+    }
+    throw new Error('Unknown error during execution');
   }
 }
 
-function getStateName(state: ProposalState): string {
-  const names = ['Pending', 'Active', 'Canceled', 'Defeated', 'Succeeded', 'Queued', 'Expired', 'Executed'];
-  return names[state] || 'Unknown';
-}
-
-async function runExecutorOnce() {
+async function main() {
   console.log('\n🚀 Starting Proposal Executor...');
   console.log('════════════════════════════════════════════════════════════');
   console.log(`Timestamp: ${new Date().toISOString()}`);
@@ -283,67 +321,74 @@ async function runExecutorOnce() {
   // Check cooldown
   const canRun = await checkCooldown();
   if (!canRun) {
-    console.log('🛑 Skipping run due to cooldown period\n');
+    console.log('⏸️  Exiting due to cooldown\n');
     return;
   }
 
   try {
-    // Fetch recent proposals
+    // Get recent proposals from subgraph
     const proposals = await getRecentProposals();
 
     if (proposals.length === 0) {
-      console.log('📋 No recent proposals found\n');
+      console.log('📭 No proposals found\n');
       await updateCooldown();
       return;
     }
 
-    // Check each proposal for execution readiness
-    console.log('🔎 Checking proposal states...\n');
+    // Check each proposal's state
+    console.log('🔍 Checking proposal states...\n');
     
     let executedCount = 0;
-    let succeededCount = 0;
 
     for (const proposal of proposals) {
       const state = await getProposalState(proposal.proposalId);
-      const stateName = getStateName(state);
-      
-      console.log(`Proposal ${proposal.proposalId.toString()}: ${stateName}`);
+      const stateName = ProposalState[state];
 
+      console.log(`   Proposal #${proposal.proposalNumber}: ${stateName} (${state})`);
+
+      // Execute if Succeeded (4) or Queued (5)
       if (state === ProposalState.Succeeded || state === ProposalState.Queued) {
-        succeededCount++;
-        console.log(`   ✅ Ready for execution!\n`);
+        console.log(`   ✅ Proposal #${proposal.proposalNumber} is ready for execution!\n`);
         
         try {
           await executeProposal(proposal);
           executedCount++;
-          console.log('════════════════════════════════════════════════════════════\n');
-        } catch (error: any) {
-          console.error(`   ❌ Execution failed: ${error.message}\n`);
+          
+          // Only execute one proposal per run to be safe
+          console.log('✅ Executed 1 proposal. Stopping to prevent issues.\n');
+          break;
+        } catch (error: unknown) {
+          if (error instanceof Error) {
+            console.error(`   ❌ Failed to execute proposal #${proposal.proposalNumber}:`, error.message);
+          } else {
+            console.error(`   ❌ Failed to execute proposal #${proposal.proposalNumber}: Unknown error`);
+          }
+          // Continue to next proposal
         }
       }
     }
 
-    console.log(`\n📊 Summary:`);
-    console.log(`   Total proposals checked: ${proposals.length}`);
-    console.log(`   Succeeded/Queued: ${succeededCount}`);
-    console.log(`   Executed: ${executedCount}\n`);
+    if (executedCount === 0) {
+      console.log('\n📋 No proposals ready for execution');
+      console.log('   (Looking for Succeeded or Queued state)\n');
+    }
 
-    // Update cooldown after processing
+    // Update cooldown
     await updateCooldown();
-
-  } catch (error: any) {
-    console.error('\n❌ ERROR in executor:');
-    console.error(`   Message: ${error.message}`);
-    console.error(`   Stack trace:`);
-    console.error(error);
+    console.log('✅ Executor run complete\n');
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('\n❌ ERROR in executor:');
+      console.error(`   Message: ${error.message}`);
+      if (error.stack) {
+        console.error(`   Stack trace:`);
+        console.error(error.stack);
+      }
+    } else {
+      console.error('\n❌ Unknown error in executor');
+    }
     process.exit(1);
   }
-
-  console.log('✅ Executor completed successfully\n');
 }
 
-// Run the executor
-runExecutorOnce().catch(error => {
-  console.error('❌ Executor failed:', error);
-  process.exit(1);
-});
+main();
