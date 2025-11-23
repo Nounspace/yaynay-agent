@@ -45,9 +45,9 @@ type SubgraphProposal = {
 
 /**
  * Time window for duplicate prevention (milliseconds)
- * Default: 24 hours
+ * Default: 1 hour
  */
-const DUPLICATE_PREVENTION_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const DUPLICATE_PREVENTION_WINDOW_MS = 1 * 60 * 60 * 1000; // 1 hour
 
 /**
  * Builder DAO Subgraph endpoint (Base Mainnet)

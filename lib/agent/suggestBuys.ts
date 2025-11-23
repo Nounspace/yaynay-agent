@@ -292,8 +292,8 @@ export async function suggestBuys(): Promise<BuySuggestion | null> {
     return null;
   }
 
-  // Step 6: Filter out coins recently proposed (last 24 hours)
-  console.log(`🕐 Checking for recently proposed coins (last 24h)...`);
+  // Step 6: Filter out coins recently proposed (last 1 hour)
+  console.log(`🕐 Checking for recently proposed coins (last 1h)...`);
   const recentProposals = await getRecentProposals();
   const recentlyProposedAddresses = new Set(
     recentProposals.map(p => p.coinAddress.toLowerCase())
