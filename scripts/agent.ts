@@ -98,8 +98,9 @@ async function processQueuedSuggestion(suggestion: QueuedSuggestion): Promise<vo
     // Mark as processing
     updateSuggestionStatus(suggestion.id, 'processing');
 
-    // Convert suggested USD allocation to ETH
-    const ethAmount = '0.01'; // TODO: Calculate from suggestedAllocationUsd and ETH price
+    // Calculate dynamic ETH allocation based on treasury and active proposals
+    const { calculateProposalAllocation } = await import('../lib/dao/calculateAllocation.js');
+    const ethAmount = await calculateProposalAllocation(1); // 1% of available funds
     const slippagePercent = 5; // 5% max slippage
 
     console.log(`💰 Trade Parameters:`);
@@ -220,9 +221,9 @@ async function performAutonomousAnalysis(): Promise<void> {
   console.log('═'.repeat(60));
   console.log('');
 
-  // Convert suggested USD allocation to ETH
-  // For MVP, using 0.01 ETH as default (adjust based on treasury and suggestion)
-  const ethAmount = '0.01'; // TODO: Calculate from suggestedAllocationUsd and ETH price
+  // Calculate dynamic ETH allocation based on treasury and active proposals
+  const { calculateProposalAllocation } = await import('../lib/dao/calculateAllocation.js');
+  const ethAmount = await calculateProposalAllocation(1); // 1% of available funds
   const slippagePercent = 5; // 5% max slippage
 
   console.log(`💰 Trade Parameters:`);
