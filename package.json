@@ -8,6 +8,7 @@
     "server": "tsx server.ts",
     "server:dev": "tsx watch server.ts",
     "agent": "tsx scripts/agent.ts",
+    "executor": "tsx scripts/executeProposals.ts",
     "queue:view": "tsx scripts/viewQueue.ts",
     "analyze": "tsx scripts/testAnalyzeAndPropose.ts",
     "test": "tsx scripts/testAll.ts",
