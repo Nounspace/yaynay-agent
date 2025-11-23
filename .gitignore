@@ -17,9 +17,9 @@ pnpm-debug.log*
 # Agent wallet (contains sensitive keys)
 .agent-wallet.json
 
-# PM2 ecosystem (may contain sensitive info)
-ecosystem.config.js
-ecosystem.config.cjs
+# PM2 ecosystem (now tracked in repo for deployment)
+# ecosystem.config.js
+# ecosystem.config.cjs
 
 # OS files
 .DS_Store
