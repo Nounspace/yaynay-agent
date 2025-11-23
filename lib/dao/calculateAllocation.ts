@@ -10,8 +10,20 @@
 import { createPublicClient, http, type Address } from 'viem';
 import { base } from 'viem/chains';
 
+interface SubgraphProposal {
+  proposalId: string;
+  description?: string;
+  values: string[];
+}
+
+interface SubgraphResponse {
+  data?: {
+    proposals?: SubgraphProposal[];
+  };
+}
+
 const SUBGRAPH_URL = 'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/latest/gn';
-const DAO_NFT_ADDRESS = '0x3740fea2a46ca4414b4afde16264389642e6596a';
+const DAO_NFT_ADDRESS = '0xbfBadc73C07f96f77Fd23d86912912409fa144D8';
 
 /**
  * Get Treasury ETH balance
@@ -69,7 +81,7 @@ async function getTotalActiveProposalValue(): Promise<bigint> {
       return 0n;
     }
 
-    const result = await response.json();
+    const result = await response.json() as SubgraphResponse;
     const proposals = result.data?.proposals || [];
 
     // Now check state of each proposal via contract
@@ -111,7 +123,7 @@ async function getTotalActiveProposalValue(): Promise<bigint> {
             totalValue += weiAmount;
           }
         }
-      } catch (error) {
+      } catch {
         // Skip proposals that error (might be old format or RPC issue)
         continue;
       }

@@ -60,7 +60,7 @@ const SUBGRAPH_URL = 'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz01
  */
 function getDaoAddress(): string {
   // Builder DAO NFT token address on Base Mainnet
-  const address = '0x3740fea2a46ca4414b4afde16264389642e6596a';
+  const address = '0xbfBadc73C07f96f77Fd23d86912912409fa144D8';
   return address.toLowerCase();
 }
 

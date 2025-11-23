@@ -133,7 +133,7 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
         name: result.name,
         creatorAddress: result.creatorAddress,
         creatorName: result.creatorName,
-        creatorPfp: result.creatorPfp,
+        pfpUrl: result.pfpUrl,
         currentPriceUsd: result.currentPriceUsd,
         volume24hUsd: result.volume24hUsd,
         alreadyHeld: result.alreadyHeld,

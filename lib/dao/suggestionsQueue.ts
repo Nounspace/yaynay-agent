@@ -20,7 +20,7 @@ export type QueuedSuggestion = {
   coinName?: string;
   creatorAddress?: string;
   creatorName?: string; // Display name of creator
-  creatorPfp?: string; // Profile picture URL
+  pfpUrl?: string; // Profile picture URL
   currentPriceUsd?: number | null;
   volume24hUsd?: number | null;
   

@@ -122,8 +122,8 @@ backend/
 ## Builder DAO Integration
 
 Integrates with [Builder DAO](https://build.top/) on Base mainnet:
-- Governor: `0x2ff7852a23e408cb6b7ba5c89384672eb88dab2e`
-- Treasury: `0x72b052a9a830001ce202ad907e6eedd0b86c4a88`
+- Governor: `0xB94478A133D25Bd1A67545a9F9E6fcc5e5fa9146`
+- Treasury: `0x8AfC86f5b9DdEcD5b938b6F45b2a22Ba0A37427a`
 
 ## License
 

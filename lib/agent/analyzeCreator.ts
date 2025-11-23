@@ -321,6 +321,7 @@ async function resolveCreatorProfile(username: string): Promise<{
 
     if (response.data?.profile) {
       const profile = response.data.profile;
+      console.log(`   DEBUG: Profile data:`, JSON.stringify(profile, null, 2));
       
       // Check if profile has a creator coin
       if (profile.creatorCoin?.address) {
