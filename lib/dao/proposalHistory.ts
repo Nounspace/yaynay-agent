@@ -50,19 +50,17 @@ type SubgraphProposal = {
 const DUPLICATE_PREVENTION_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
- * Builder DAO Subgraph endpoint (Base Sepolia)
+ * Builder DAO Subgraph endpoint (Base Mainnet)
  */
-const SUBGRAPH_URL = 'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/production/gn';
+const SUBGRAPH_URL = 'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/latest/gn';
 
 /**
  * Get DAO entity address from environment
- * Note: This should be the DAO entity address from the Builder subgraph,
- * not the treasury or governor address.
+ * Note: In the Nouns Builder subgraph, the DAO entity ID is the NFT token address
  */
 function getDaoAddress(): string {
-  // For now, use the known Builder DAO entity address on Base Sepolia
-  // TODO: Make this configurable via environment variable
-  const address = '0x626fbb71ca4fe65f94e73ab842148505ae1a0b26';
+  // Builder DAO NFT token address on Base Mainnet
+  const address = '0x3740fea2a46ca4414b4afde16264389642e6596a';
   return address.toLowerCase();
 }
 

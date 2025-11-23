@@ -15,9 +15,10 @@ const GOVERNOR_ADDRESS = process.env.DAO_GOVERNOR_ADDRESS as `0x${string}`;
 const AGENT_SMART_ACCOUNT = process.env.AGENT_SMART_ACCOUNT_ADDRESS as `0x${string}`;
 const AGENT_EOA_ADDRESS = process.env.AGENT_EOA_ADDRESS as `0x${string}`;
 
-// Subgraph URL for Builder DAO
-const SUBGRAPH_URL = 'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/production/gn';
-const DAO_ADDRESS = '0x626fbb71ca4fe65f94e73ab842148505ae1a0b26';
+// Subgraph URL for Builder DAO (Base Mainnet)
+const SUBGRAPH_URL = 'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/latest/gn';
+// Builder DAO NFT token address (this is the DAO entity ID in the subgraph)
+const DAO_ADDRESS = '0x3740fea2a46ca4414b4afde16264389642e6596a';
 
 // Cooldown to prevent rapid executions
 const COOLDOWN_MS = 12 * 60 * 1000; // 12 minutes
@@ -29,7 +30,7 @@ const GOVERNOR_ABI = [
     name: 'state',
     type: 'function',
     stateMutability: 'view',
-    inputs: [{ name: 'proposalId', type: 'uint256' }],
+    inputs: [{ name: 'proposalId', type: 'bytes32' }],
     outputs: [{ name: '', type: 'uint8' }],
   },
   {
@@ -67,7 +68,7 @@ interface SubgraphProposal {
 }
 
 interface ProposalData {
-  proposalId: bigint;
+  proposalId: `0x${string}`; // bytes32 hex string from subgraph
   proposalNumber: number;
   description: string;
   targets: `0x${string}`[];
@@ -192,7 +193,7 @@ async function getRecentProposals(): Promise<ProposalData[]> {
       const descriptionHash = keccak256(toHex(p.description));
 
       parsedProposals.push({
-        proposalId: BigInt(p.proposalId),
+        proposalId: p.proposalId as `0x${string}`,
         proposalNumber: p.proposalNumber,
         description: p.description,
         targets: details.targets,
@@ -210,7 +211,7 @@ async function getRecentProposals(): Promise<ProposalData[]> {
   }
 }
 
-async function getProposalState(proposalId: bigint): Promise<ProposalState> {
+async function getProposalState(proposalId: `0x${string}`): Promise<ProposalState> {
   const client = createPublicClient({
     chain: base,
     transport: http(), // Uses default Base RPC
@@ -220,7 +221,7 @@ async function getProposalState(proposalId: bigint): Promise<ProposalState> {
     address: GOVERNOR_ADDRESS,
     abi: GOVERNOR_ABI,
     functionName: 'state',
-    args: [proposalId],
+    args: [proposalId as `0x${string}`],
   }) as number;
 
   return state;
@@ -232,7 +233,7 @@ async function executeProposal(proposal: ProposalData): Promise<void> {
   console.log('════════════════════════════════════════════════════════════\n');
 
   console.log(`Proposal #${proposal.proposalNumber}`);
-  console.log(`ID: ${proposal.proposalId.toString()}`);
+  console.log(`ID: ${proposal.proposalId}`);
   console.log(`Description: ${proposal.description.substring(0, 100)}...`);
   console.log(`Targets: ${proposal.targets.length} transaction(s)`);
   console.log(`Total value: ${proposal.values.reduce((a, b) => a + b, 0n)} wei\n`);
