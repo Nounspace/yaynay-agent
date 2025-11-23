@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+dist/
+
+# Environment variables (NEVER commit these!)
+.env
+.env.*
+!.env.example
+
+# Runtime data and logs
+data/
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Agent wallet (contains sensitive keys)
+.agent-wallet.json
+
+# PM2 ecosystem (may contain sensitive info)
+ecosystem.config.js
+ecosystem.config.cjs
+
+# OS files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose.override.yml
+
