@@ -111,9 +111,10 @@ async function updateCooldown(): Promise<void> {
 async function getRecentProposals(): Promise<ProposalData[]> {
   console.log('🔍 Fetching recent proposals from Governor...\n');
   
+  // Use Base's official RPC endpoint (more reliable than public endpoint)
   const client = createPublicClient({
     chain: base,
-    transport: http(),
+    transport: http('https://base.blockpi.network/v1/rpc/public'),
   });
 
   // Get logs for ProposalCreated events from last 7 days
@@ -165,7 +166,7 @@ async function getRecentProposals(): Promise<ProposalData[]> {
 async function getProposalState(proposalId: bigint): Promise<ProposalState> {
   const client = createPublicClient({
     chain: base,
-    transport: http(),
+    transport: http('https://base.blockpi.network/v1/rpc/public'),
   });
 
   const state = await client.readContract({
