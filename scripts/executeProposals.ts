@@ -11,20 +11,6 @@ import { createPublicClient, http, keccak256, toHex, encodeFunctionData } from '
 import { base } from 'viem/chains';
 import { CdpClient } from '@coinbase/cdp-sdk';
 
-interface SubgraphProposal {
-  proposalId: string;
-  proposalNumber: number;
-  description: string;
-  title: string;
-  timeCreated: string;
-}
-
-interface SubgraphResponse {
-  data?: {
-    proposals?: SubgraphProposal[];
-  };
-}
-
 const GOVERNOR_ADDRESS = process.env.DAO_GOVERNOR_ADDRESS as `0x${string}`;
 const AGENT_SMART_ACCOUNT = process.env.AGENT_SMART_ACCOUNT_ADDRESS as `0x${string}`;
 const AGENT_EOA_ADDRESS = process.env.AGENT_EOA_ADDRESS as `0x${string}`;
@@ -32,7 +18,7 @@ const AGENT_EOA_ADDRESS = process.env.AGENT_EOA_ADDRESS as `0x${string}`;
 // Subgraph URL for Builder DAO (Base Mainnet)
 const SUBGRAPH_URL = 'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/latest/gn';
 // Builder DAO NFT token address (this is the DAO entity ID in the subgraph)
-const DAO_ADDRESS = '0xbfBadc73C07f96f77Fd23d86912912409fa144D8';
+const DAO_ADDRESS = '0x3740fea2a46ca4414b4afde16264389642e6596a';
 
 // Cooldown to prevent rapid executions
 const COOLDOWN_MS = 12 * 60 * 1000; // 12 minutes
@@ -190,7 +176,7 @@ async function getRecentProposals(): Promise<ProposalData[]> {
       throw new Error(`Subgraph request failed: ${response.status}`);
     }
 
-    const result = await response.json() as SubgraphResponse;
+    const result = await response.json();
     const proposals = result.data?.proposals || [];
     
     console.log(`   Found ${proposals.length} proposals from subgraph\n`);
@@ -305,13 +291,15 @@ async function executeProposal(proposal: ProposalData): Promise<void> {
       calls: [{
         to: GOVERNOR_ADDRESS,
         data: executeCalldata,
-        value: 0n,
+        value: '0',
       }],
     });
 
     console.log('\n✅ EXECUTION TRANSACTION SUBMITTED!');
     console.log('════════════════════════════════════════════════════════════');
-    console.log('Result:', result);
+    console.log(`User Operation Hash: ${result.userOperationHash}`);
+    console.log(`Transaction Hash: ${result.transactionHash}`);
+    console.log(`View on BaseScan: https://basescan.org/tx/${result.transactionHash}`);
     console.log('════════════════════════════════════════════════════════════\n');
   } catch (error: unknown) {
     if (error instanceof Error) {

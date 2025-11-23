@@ -19,7 +19,7 @@ async function runTests() {
   // Test 1: Import queue functions
   try {
     console.log('\n✓ Test 1: Import queue functions...');
-    const { getQueueStats } = await import('../lib/dao/suggestionsQueue');
+    const { getQueueStats, getAllSuggestions } = await import('../lib/dao/suggestionsQueue');
     const stats = getQueueStats();
     console.log(`  Queue stats: ${stats.total} total, ${stats.pending} pending`);
     passedTests++;
@@ -31,7 +31,7 @@ async function runTests() {
   // Test 2: Import portfolio functions
   try {
     console.log('\n✓ Test 2: Import portfolio functions...');
-    await import('../lib/dao/portfolio');
+    const { getDaoCoinHoldings } = await import('../lib/dao/portfolio');
     console.log('  Portfolio functions loaded');
     passedTests++;
   } catch (error) {
@@ -42,7 +42,7 @@ async function runTests() {
   // Test 3: Import proposal functions
   try {
     console.log('\n✓ Test 3: Import proposal functions...');
-    await import('../lib/dao/proposals');
+    const { createBuyCoinProposal } = await import('../lib/dao/proposals');
     console.log('  Proposal functions loaded');
     passedTests++;
   } catch (error) {
@@ -53,7 +53,7 @@ async function runTests() {
   // Test 4: Import analyzer functions
   try {
     console.log('\n✓ Test 4: Import analyzer functions...');
-    await import('../lib/agent/analyzeCreator');
+    const { analyzeAndPropose } = await import('../lib/agent/analyzeCreator');
     console.log('  Analyzer functions loaded');
     passedTests++;
   } catch (error) {
@@ -64,7 +64,7 @@ async function runTests() {
   // Test 5: Import agent functions
   try {
     console.log('\n✓ Test 5: Import agent functions...');
-    await import('../lib/agent/suggestBuys');
+    const { suggestBuys } = await import('../lib/agent/suggestBuys');
     console.log('  Agent functions loaded');
     passedTests++;
   } catch (error) {

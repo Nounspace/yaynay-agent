@@ -53,7 +53,7 @@ function checkCooldown(): boolean {
     }
 
     return false;
-  } catch {
+  } catch (error) {
     console.log('⚠️  Could not read last run file, proceeding anyway');
     return false;
   }
@@ -73,7 +73,7 @@ function recordRunTime(): void {
       LAST_RUN_FILE,
       JSON.stringify({ timestamp: new Date().toISOString() }, null, 2)
     );
-  } catch {
+  } catch (error) {
     console.log('⚠️  Could not write last run file');
   }
 }
