@@ -42,7 +42,7 @@ export type CoinAnalysis = {
   symbol?: string;
   name?: string;
   creatorName?: string; // Display name from profile
-  creatorPfp?: string; // Profile picture URL
+  pfpUrl?: string; // Profile picture URL
   currentPriceUsd?: number | null;
   volume24hUsd?: number | null;
   alreadyHeld: boolean;
@@ -265,9 +265,20 @@ async function resolveCreatorProfile(username: string): Promise<{
   const searchResult = await searchCoinByName(username);
   if (searchResult) {
     console.log(`✅ Found coin via search: ${searchResult.symbol || searchResult.name}`);
+    
+    // Try to get profile picture by looking up the profile
+    let pfpUrl: string | undefined;
+    try {
+      const profileResponse = (await getProfile({ identifier: username })) as ProfileResponse;
+      pfpUrl = profileResponse.data?.profile?.pfpUrl;
+    } catch {
+      console.log(`   Could not fetch profile picture`);
+    }
+    
     return { 
       address: searchResult.address, 
-      displayName: searchResult.name || searchResult.symbol || username 
+      displayName: searchResult.name || searchResult.symbol || username,
+      pfpUrl 
     };
   }
 
@@ -284,6 +295,7 @@ async function resolveCreatorProfile(username: string): Promise<{
     )) as ProfileCoinsResponse;
 
     const coins = coinsResponse.data?.profile?.coins?.edges || [];
+    const profileData = coinsResponse.data?.profile;
 
     if (coins.length > 0 && coins[0].node?.address) {
       const coin = coins[0].node;
@@ -291,6 +303,7 @@ async function resolveCreatorProfile(username: string): Promise<{
       return {
         address: coin.address!,
         displayName: coin.name || coin.symbol || username,
+        pfpUrl: profileData?.pfpUrl,
       };
     }
   } catch {
@@ -704,6 +717,8 @@ export async function analyzeAndPropose(
       coinId: coinAddress,
       symbol: recentProposal.coinSymbol || coin.symbol || undefined,
       name: recentProposal.coinName || coin.name || undefined,
+      creatorName: profile.displayName,
+      pfpUrl: profile.pfpUrl,
       currentPriceUsd: coin.currentPriceUsd,
       volume24hUsd: coin.volume24hUsd,
       alreadyHeld: false, // Unknown, but doesn't matter
@@ -759,7 +774,7 @@ export async function analyzeAndPropose(
       coinName: analysis.name,
       creatorAddress: analysis.creatorAddress,
       creatorName: profile.displayName,
-      creatorPfp: profile.pfpUrl,
+      pfpUrl: profile.pfpUrl,
       currentPriceUsd: analysis.currentPriceUsd,
       volume24hUsd: analysis.volume24hUsd,
       reason: analysis.reason,
@@ -863,7 +878,7 @@ export async function analyzeCreatorCoinByUsername(
       symbol: coin.symbol,
       name: coin.name,
       creatorName: profile.displayName,
-      creatorPfp: profile.pfpUrl,
+      pfpUrl: profile.pfpUrl,
       currentPriceUsd: coin.currentPriceUsd,
       volume24hUsd: coin.volume24hUsd,
       alreadyHeld,
